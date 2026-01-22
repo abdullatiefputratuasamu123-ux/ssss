@@ -56,7 +56,7 @@ Header.Parent = MainFrame
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Name = "Title"
-TitleLabel.Text = "EL-FARM v2.0"
+TitleLabel.Text = "Dul Gege v2.0"
 TitleLabel.Size = UDim2.new(1, -100, 1, 0)
 TitleLabel.Position = UDim2.new(0, 10, 0, 0)
 TitleLabel.BackgroundTransparency = 1
@@ -178,11 +178,17 @@ task.spawn(function()
 
     if net then
         fishingEvents = {
-            EquipTool = net:FindFirstChild("RE/EquipToolFromHotbar") or net:WaitForChild("RE/EquipToolFromHotbar", 2),
-            ChargeRod = net:FindFirstChild("RF/ChargeFishingRod") or net:WaitForChild("RF/ChargeFishingRod", 2),
-            Minigame = net:FindFirstChild("RF/RequestFishingMinigameStarted") or net:WaitForChild("RF/RequestFishingMinigameStarted", 2),
-            Complete = net:FindFirstChild("RE/FishingCompleted") or net:WaitForChild("RE/FishingCompleted", 2),
-            Sell = net:FindFirstChild("RF/SellFish") or net:WaitForChild("RF/SellFish", 2) -- Hypothethical
+            EquipTool = net:FindFirstChild("RE/EquipToolFromHotbar"),
+            ChargeRod = net:FindFirstChild("RF/ChargeFishingRod"),
+            Minigame = net:FindFirstChild("RF/RequestFishingMinigameStarted"),
+            Complete = net:FindFirstChild("RE/FishingCompleted"),
+            Sell = net:FindFirstChild("RF/SellAllItems"), -- Updated from debug dump
+            -- New Features
+            ClaimDaily = net:FindFirstChild("RF/ClaimDailyLogin"),
+            SpinWheel = net:FindFirstChild("RE/RequestSpin"),
+            RedeemCode = net:FindFirstChild("RF/RedeemCode"),
+            EquipOxygen = net:FindFirstChild("RF/EquipOxygenTank"),
+            PurchaseBait = net:FindFirstChild("RF/PurchaseBait")
         }
     else
         warn("FishItBot: Net module not found! AutoFish might be limited.")
@@ -528,7 +534,106 @@ fbBtn.MouseButton1Click:Connect(function()
     end
 end)
 
--- 5. Trade & Webhook (Kept from v1, minor UI tweaks)
+-- 5. Misc Features (NEW - From Debug Analysis)
+local miscScroll = tabFrames["Misc"]
+local mY = 0
+
+-- Anti-Drown (Oxygen)
+local antiDrownEnabled = false
+local adBtn = Instance.new("TextButton")
+adBtn.Text = "Anti-Drown (Auto Oxygen): OFF"
+adBtn.Size = UDim2.new(1, 0, 0, 30)
+adBtn.Position = UDim2.new(0, 0, 0, mY)
+adBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+adBtn.TextColor3 = Color3.new(1,1,1)
+adBtn.Parent = miscScroll
+adBtn.MouseButton1Click:Connect(function()
+    antiDrownEnabled = not antiDrownEnabled
+    adBtn.Text = "Anti-Drown (Auto Oxygen): " .. (antiDrownEnabled and "ON" or "OFF")
+    adBtn.BackgroundColor3 = antiDrownEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    
+    if antiDrownEnabled then
+        task.spawn(function()
+            while antiDrownEnabled do
+                if fishingEvents.EquipOxygen then
+                    pcall(function() fishingEvents.EquipOxygen:InvokeServer() end)
+                end
+                task.wait(10) -- Refresh oxygen every 10s
+            end
+        end)
+    end
+end)
+mY = mY + 35
+
+-- Claim Daily
+local dailyBtn = Instance.new("TextButton")
+dailyBtn.Text = "Claim Daily Rewards"
+dailyBtn.Size = UDim2.new(1, 0, 0, 30)
+dailyBtn.Position = UDim2.new(0, 0, 0, mY)
+dailyBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+dailyBtn.TextColor3 = Color3.new(1,1,1)
+dailyBtn.Parent = miscScroll
+dailyBtn.MouseButton1Click:Connect(function()
+    if fishingEvents.ClaimDaily then
+        pcall(function() fishingEvents.ClaimDaily:InvokeServer() end)
+        dailyBtn.Text = "Claimed!"
+        task.wait(2)
+        dailyBtn.Text = "Claim Daily Rewards"
+    else
+        dailyBtn.Text = "Remote Not Found"
+    end
+end)
+mY = mY + 35
+
+-- Spin Wheel
+local spinBtn = Instance.new("TextButton")
+spinBtn.Text = "Spin Wheel"
+spinBtn.Size = UDim2.new(1, 0, 0, 30)
+spinBtn.Position = UDim2.new(0, 0, 0, mY)
+spinBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+spinBtn.TextColor3 = Color3.new(1,1,1)
+spinBtn.Parent = miscScroll
+spinBtn.MouseButton1Click:Connect(function()
+    if fishingEvents.SpinWheel then
+        pcall(function() fishingEvents.SpinWheel:FireServer() end)
+        spinBtn.Text = "Spin Requested!"
+        task.wait(2)
+        spinBtn.Text = "Spin Wheel"
+    else
+        spinBtn.Text = "Remote Not Found"
+    end
+end)
+mY = mY + 35
+
+-- Redeem Code
+local codeInput = Instance.new("TextBox")
+codeInput.PlaceholderText = "Enter Code Here..."
+codeInput.Size = UDim2.new(1, 0, 0, 30)
+codeInput.Position = UDim2.new(0, 0, 0, mY)
+codeInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+codeInput.TextColor3 = Color3.new(1,1,1)
+codeInput.Parent = miscScroll
+mY = mY + 35
+
+local codeBtn = Instance.new("TextButton")
+codeBtn.Text = "Redeem Code"
+codeBtn.Size = UDim2.new(1, 0, 0, 30)
+codeBtn.Position = UDim2.new(0, 0, 0, mY)
+codeBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
+codeBtn.TextColor3 = Color3.new(1,1,1)
+codeBtn.Parent = miscScroll
+codeBtn.MouseButton1Click:Connect(function()
+    local code = codeInput.Text
+    if code ~= "" and fishingEvents.RedeemCode then
+        pcall(function() fishingEvents.RedeemCode:InvokeServer(code) end)
+        codeBtn.Text = "Sent!"
+        task.wait(2)
+        codeBtn.Text = "Redeem Code"
+    end
+end)
+mY = mY + 35
+
+-- 6. Trade & Webhook (Kept from v1, minor UI tweaks)
 -- Trade
 local tradeActive = false
 local selectedItems = {}
