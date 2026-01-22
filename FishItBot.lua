@@ -56,7 +56,7 @@ Header.Parent = MainFrame
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Name = "Title"
-TitleLabel.Text = "Dul Gege v2.0"
+TitleLabel.Text = "EL-FARM v2.0"
 TitleLabel.Size = UDim2.new(1, -100, 1, 0)
 TitleLabel.Position = UDim2.new(0, 10, 0, 0)
 TitleLabel.BackgroundTransparency = 1
@@ -240,7 +240,11 @@ function equipRod()
     if not char then return false end
     
     local tool = char:FindFirstChildOfClass("Tool")
-    if tool and tool.Name:lower():find("rod") then return true end -- Already equipped
+    if tool then
+         -- Assume any equipped tool is the intended fishing rod
+         -- This fixes the issue where custom rod names were not detected
+        return true 
+    end
     
     local bp = LocalPlayer.Backpack
     local rod = bp:FindFirstChild("Fishing Rod") or bp:FindFirstChild("Rod") -- Common names
