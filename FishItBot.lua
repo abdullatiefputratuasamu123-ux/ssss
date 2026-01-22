@@ -239,19 +239,46 @@ function equipRod()
     local char = LocalPlayer.Character
     if not char then return false end
     
+    -- 1. Check for standard Tool in Character (Equipped)
     local tool = char:FindFirstChildOfClass("Tool")
     if tool then
-         -- Assume any equipped tool is the intended fishing rod
-         -- This fixes the issue where custom rod names were not detected
+         -- Found a standard tool, assume it's the rod
         return true 
     end
     
-    local bp = LocalPlayer.Backpack
-    local rod = bp:FindFirstChild("Fishing Rod") or bp:FindFirstChild("Rod") -- Common names
+    -- 2. Check for Custom Tool (Model/Part) in Character
+    -- Some games use Models welded to the hand instead of Tool objects
+    for _, child in pairs(char:GetChildren()) do
+        if (child:IsA("Model") or child:IsA("BasePart")) and (child.Name:lower():find("rod") or child.Name:lower():find("fish") or child.Name:lower():find("pole")) then
+            return true
+        end
+    end
     
+    -- 3. Check Backpack for any tool to equip
+    local bp = LocalPlayer.Backpack
+    if not bp then return false end
+
+    -- Search for explicit names first
+    local rod = bp:FindFirstChild("Fishing Rod") or bp:FindFirstChild("Rod")
+    
+    -- Fuzzy search
     if not rod then
         for _, t in pairs(bp:GetChildren()) do
-            if t:IsA("Tool") and t.Name:lower():find("rod") then
+            if t:IsA("Tool") then
+                 local name = t.Name:lower()
+                 if name:find("rod") or name:find("fish") or name:find("pole") then
+                     rod = t
+                     break
+                 end
+            end
+        end
+    end
+    
+    -- Fallback: Just grab the first tool found in backpack
+    if not rod then
+        local tools = bp:GetChildren()
+        for _, t in pairs(tools) do
+            if t:IsA("Tool") then
                 rod = t
                 break
             end
@@ -262,6 +289,7 @@ function equipRod()
         Humanoid:EquipTool(rod)
         return true
     end
+    
     return false
 end
 
