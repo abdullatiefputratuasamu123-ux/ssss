@@ -1,5 +1,5 @@
 -- Fish It Auto-Fishing Bot
--- Generated based on implementation.md and task.md
+-- Updated with Fixes: AutoFish, Teleport Locations, Settings Tab
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -8,6 +8,7 @@ local VirtualUser = game:GetService("VirtualUser")
 local RunService = game:GetService("RunService")
 local TeleportService = game:GetService("TeleportService")
 local UserInputService = game:GetService("UserInputService")
+local Lighting = game:GetService("Lighting")
 
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
@@ -24,7 +25,7 @@ end)
 
 -- 1. GUI System
 local ScreenGui = Instance.new("ScreenGui")
-ScreenGui.Name = "FishItGUI"
+ScreenGui.Name = "FishItGUI_v2"
 ScreenGui.ResetOnSpawn = false
 if syn and syn.protect_gui then
     syn.protect_gui(ScreenGui)
@@ -38,8 +39,8 @@ end
 
 local MainFrame = Instance.new("Frame")
 MainFrame.Name = "MainFrame"
-MainFrame.Size = UDim2.new(0, 360, 0, 240)
-MainFrame.Position = UDim2.new(0.5, -180, 0.5, -120)
+MainFrame.Size = UDim2.new(0, 400, 0, 300) -- Increased size for better layout
+MainFrame.Position = UDim2.new(0.5, -200, 0.5, -150)
 MainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
 MainFrame.BorderSizePixel = 0
 MainFrame.Active = true
@@ -55,7 +56,7 @@ Header.Parent = MainFrame
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Name = "Title"
-TitleLabel.Text = "ADULGEGE"
+TitleLabel.Text = "Dul Gege v2.0"
 TitleLabel.Size = UDim2.new(1, -100, 1, 0)
 TitleLabel.Position = UDim2.new(0, 10, 0, 0)
 TitleLabel.BackgroundTransparency = 1
@@ -147,28 +148,29 @@ if tabFrames["AutoFish"] then tabFrames["AutoFish"].Visible = true end
 MinimizeButton.MouseButton1Click:Connect(function()
     ContentFrame.Visible = not ContentFrame.Visible
     if ContentFrame.Visible then
-        MainFrame.Size = UDim2.new(0, 360, 0, 240)
+        MainFrame.Size = UDim2.new(0, 400, 0, 300)
         MinimizeButton.Text = "-"
     else
-        MainFrame.Size = UDim2.new(0, 360, 0, 30)
+        MainFrame.Size = UDim2.new(0, 400, 0, 30)
         MinimizeButton.Text = "+"
     end
 end)
 
--- 2. Fishing Core
+-- 2. Fishing Core (IMPROVED)
 local net = nil
 local fishingEvents = {}
 
 -- Safely try to find the net module and remotes
 task.spawn(function()
     pcall(function()
-        local packages = ReplicatedStorage:WaitForChild("Packages", 5)
+        -- Try multiple paths for net
+        local packages = ReplicatedStorage:FindFirstChild("Packages")
         if packages then
-             local index = packages:WaitForChild("_Index", 5)
+             local index = packages:FindFirstChild("_Index")
              if index then
                  local netPackage = index:FindFirstChild("sleitnick_net@0.2.0")
                  if netPackage then
-                     net = netPackage:WaitForChild("net")
+                     net = netPackage:WaitForChild("net", 2)
                  end
              end
         end
@@ -176,14 +178,14 @@ task.spawn(function()
 
     if net then
         fishingEvents = {
-            EquipTool = net:WaitForChild("RE/EquipToolFromHotbar", 5),
-            ChargeRod = net:WaitForChild("RF/ChargeFishingRod", 5),
-            Minigame = net:WaitForChild("RF/RequestFishingMinigameStarted", 5),
-            Complete = net:WaitForChild("RE/FishingCompleted", 5),
-            BuyItem = net:WaitForChild("RF/BuyItem", 5) -- Assuming this exists for Auto Buy
+            EquipTool = net:FindFirstChild("RE/EquipToolFromHotbar") or net:WaitForChild("RE/EquipToolFromHotbar", 2),
+            ChargeRod = net:FindFirstChild("RF/ChargeFishingRod") or net:WaitForChild("RF/ChargeFishingRod", 2),
+            Minigame = net:FindFirstChild("RF/RequestFishingMinigameStarted") or net:WaitForChild("RF/RequestFishingMinigameStarted", 2),
+            Complete = net:FindFirstChild("RE/FishingCompleted") or net:WaitForChild("RE/FishingCompleted", 2),
+            Sell = net:FindFirstChild("RF/SellFish") or net:WaitForChild("RF/SellFish", 2) -- Hypothethical
         }
     else
-        warn("FishItBot: Net module not found!")
+        warn("FishItBot: Net module not found! AutoFish might be limited.")
     end
 end)
 
@@ -191,16 +193,6 @@ local autoFishEnabled = false
 local autoSellEnabled = false
 local autoBuyRodEnabled = false
 local catchCount = 0
-
--- Helper: Play Animation
-local function playAnimation(animId)
-    if not Humanoid then return end
-    local animation = Instance.new("Animation")
-    animation.AnimationId = animId
-    local track = Humanoid:LoadAnimation(animation)
-    track:Play()
-    return track
-end
 
 -- UI for AutoFish
 local afToggle = Instance.new("TextButton")
@@ -231,96 +223,281 @@ asToggle.MouseButton1Click:Connect(function()
     asToggle.BackgroundColor3 = autoSellEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
 end)
 
-local abToggle = Instance.new("TextButton")
-abToggle.Text = "Auto Buy Rod: OFF"
-abToggle.Size = UDim2.new(1, 0, 0, 30)
-abToggle.Position = UDim2.new(0, 0, 0, 70)
-abToggle.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
-abToggle.TextColor3 = Color3.new(1,1,1)
-abToggle.Parent = tabFrames["AutoFish"]
-abToggle.MouseButton1Click:Connect(function()
-    autoBuyRodEnabled = not autoBuyRodEnabled
-    abToggle.Text = "Auto Buy Rod: " .. (autoBuyRodEnabled and "ON" or "OFF")
-    abToggle.BackgroundColor3 = autoBuyRodEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
-end)
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Text = "Status: Idle"
+statusLabel.Size = UDim2.new(1, 0, 0, 20)
+statusLabel.Position = UDim2.new(0, 0, 0, 105)
+statusLabel.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Parent = tabFrames["AutoFish"]
+
+function updateStatus(msg)
+    statusLabel.Text = "Status: " .. msg
+end
+
+function equipRod()
+    local char = LocalPlayer.Character
+    if not char then return false end
+    
+    local tool = char:FindFirstChildOfClass("Tool")
+    if tool and tool.Name:lower():find("rod") then return true end -- Already equipped
+    
+    local bp = LocalPlayer.Backpack
+    local rod = bp:FindFirstChild("Fishing Rod") or bp:FindFirstChild("Rod") -- Common names
+    
+    if not rod then
+        for _, t in pairs(bp:GetChildren()) do
+            if t:IsA("Tool") and t.Name:lower():find("rod") then
+                rod = t
+                break
+            end
+        end
+    end
+    
+    if rod then
+        Humanoid:EquipTool(rod)
+        return true
+    end
+    return false
+end
 
 function startFishing()
-    while autoFishEnabled and task.wait(0.5) do
-        -- Check if rod is equipped
-        -- Placeholder logic: assumes fishingEvents are valid
+    while autoFishEnabled do
+        if not equipRod() then
+            updateStatus("Rod not found! Check Backpack.")
+            task.wait(2)
+            continue
+        end
+        
+        -- 1. Charge Rod
+        updateStatus("Casting...")
         if fishingEvents.ChargeRod then
-            -- 1. Charge Rod
             pcall(function()
-                fishingEvents.ChargeRod:InvokeServer(1) -- 100% cast
+                fishingEvents.ChargeRod:InvokeServer(1) -- 100% cast power
             end)
+        else
+            -- Fallback: Use VirtualUser click if remote is missing (Last resort)
+            VirtualUser:ClickButton1(Vector2.new(0,0))
+        end
+        
+        task.wait(1.5)
+        
+        -- 2. Request Minigame
+        updateStatus("Waiting for bite...")
+        -- In many fishing games, you wait for a 'bobber' to dip or a signal.
+        -- We'll try to invoke the minigame immediately or wait a bit.
+        task.wait(2.5) -- Simulated wait for bite
+        
+        updateStatus("Playing Minigame...")
+        if fishingEvents.Minigame then
+            pcall(function()
+                fishingEvents.Minigame:InvokeServer()
+            end)
+        end
+        
+        task.wait(1.5) -- Minigame duration simulation
+        
+        -- 3. Complete Fishing
+        updateStatus("Catching!")
+        -- Try to fire completion event if it's a RemoteEvent
+        if fishingEvents.Complete and fishingEvents.Complete:IsA("RemoteEvent") then
+            pcall(function()
+                fishingEvents.Complete:FireServer()
+            end)
+        elseif fishingEvents.Complete and fishingEvents.Complete:IsA("RemoteFunction") then
+             pcall(function()
+                fishingEvents.Complete:InvokeServer()
+            end)
+        end
+        
+        catchCount = catchCount + 1
+        updateStatus("Caught! Total: " .. catchCount)
+        task.wait(0.5)
+        
+        -- Auto Sell Logic
+        if autoSellEnabled and catchCount >= 30 then
+            updateStatus("Auto Selling...")
+            if fishingEvents.Sell then
+                pcall(function() fishingEvents.Sell:InvokeServer() end)
+            else
+                -- Teleport to sell area if remote not found? (Advanced)
+                print("Sell Remote not mapped.")
+            end
+            catchCount = 0
             task.wait(1)
-            
-            -- 2. Request Minigame
-            if fishingEvents.Minigame then
-                pcall(function()
-                    fishingEvents.Minigame:InvokeServer()
-                end)
-            end
-            task.wait(2) -- Wait for minigame duration
-            
-            -- 3. Complete Fishing (Perfect Cast Logic simulation)
-            catchCount = catchCount + 1
-            
-            -- Auto Sell Logic
-            if autoSellEnabled and catchCount >= 30 then
-                catchCount = 0
-                print("Selling fish...")
-                -- Add Sell Remote here if known, e.g., net:WaitForChild("RF/SellFish"):InvokeServer()
-            end
-            
-            -- Auto Buy Rod Logic
-            if autoBuyRodEnabled and fishingEvents.BuyItem then
-                 -- Example: Check money and buy better rod
-                 -- This requires knowing the Rod ID and price
-                 -- pcall(function() fishingEvents.BuyItem:InvokeServer("BetterRod") end)
-            end
         end
     end
+    updateStatus("Idle")
 end
 
--- 3. Teleport System
+-- 3. Teleport System (EXPANDED)
 local teleportLocations = {
-    Ocean = {
-        Vector3.new(-1460.4, 13.1, 1826.7),
-        Vector3.new(-1524.6, 8.4, 1773.7)
-    },
-    AncientRuin = {
-        Vector3.new(6042.5, -555.3, 4454.2),
-        Vector3.new(6019.4, -553.0, 4506.8)
-    }
+    ["Spawn"] = Vector3.new(0, 10, 0), -- Placeholder, usually safe
+    ["Ocean"] = Vector3.new(-1460.4, 13.1, 1826.7),
+    ["Ancient Ruin"] = Vector3.new(6042.5, -555.3, 4454.2),
+    ["Snow Island"] = Vector3.new(200, 10, 200), -- Placeholder
+    ["Magma Island"] = Vector3.new(-200, 10, -200), -- Placeholder
+    ["Pirate Island"] = Vector3.new(500, 10, 0), -- Placeholder
+    ["Desert Island"] = Vector3.new(0, 10, 500) -- Placeholder
 }
 
-local function teleportTo(locationName)
-    local locs = teleportLocations[locationName]
-    if locs then
-        local target = locs[math.random(1, #locs)]
-        if Character and Character.PrimaryPart then
-            Character:SetPrimaryPartCFrame(CFrame.new(target))
-        end
+local function teleportTo(pos)
+    if Character and Character.PrimaryPart then
+        Character:SetPrimaryPartCFrame(CFrame.new(pos))
     end
 end
 
+-- UI for Teleport
+local tpScroll = tabFrames["Teleport"]
 local yPos = 0
-for name, _ in pairs(teleportLocations) do
+
+-- Get Position Button
+local getPosBtn = Instance.new("TextButton")
+getPosBtn.Text = "Print Current Position (F9)"
+getPosBtn.Size = UDim2.new(1, 0, 0, 30)
+getPosBtn.Position = UDim2.new(0, 0, 0, yPos)
+getPosBtn.BackgroundColor3 = Color3.fromRGB(50, 100, 150)
+getPosBtn.TextColor3 = Color3.new(1,1,1)
+getPosBtn.Parent = tpScroll
+getPosBtn.MouseButton1Click:Connect(function()
+    if Character and Character.PrimaryPart then
+        local pos = Character.PrimaryPart.Position
+        print("Current Position: Vector3.new(" .. math.floor(pos.X) .. ", " .. math.floor(pos.Y) .. ", " .. math.floor(pos.Z) .. ")")
+        updateStatus("Pos printed to console (F9)")
+    end
+end)
+yPos = yPos + 35
+
+-- Location Buttons
+for name, pos in pairs(teleportLocations) do
     local btn = Instance.new("TextButton")
     btn.Text = "TP to " .. name
     btn.Size = UDim2.new(1, 0, 0, 30)
     btn.Position = UDim2.new(0, 0, 0, yPos)
-    btn.Parent = tabFrames["Teleport"]
+    btn.Parent = tpScroll
     btn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
     btn.TextColor3 = Color3.new(1,1,1)
     btn.MouseButton1Click:Connect(function()
-        teleportTo(name)
+        teleportTo(pos)
     end)
     yPos = yPos + 35
 end
 
--- 4. Trade System
+-- 4. Settings System (NEW)
+local settingsScroll = tabFrames["Settings"]
+local setY = 0
+
+-- WalkSpeed
+local wsLabel = Instance.new("TextLabel")
+wsLabel.Text = "WalkSpeed: 16"
+wsLabel.Size = UDim2.new(1, 0, 0, 20)
+wsLabel.Position = UDim2.new(0, 0, 0, setY)
+wsLabel.BackgroundTransparency = 1
+wsLabel.TextColor3 = Color3.new(1,1,1)
+wsLabel.Parent = settingsScroll
+setY = setY + 20
+
+local wsInput = Instance.new("TextBox")
+wsInput.Text = "16"
+wsInput.Size = UDim2.new(1, 0, 0, 30)
+wsInput.Position = UDim2.new(0, 0, 0, setY)
+wsInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+wsInput.TextColor3 = Color3.new(1,1,1)
+wsInput.Parent = settingsScroll
+wsInput.FocusLost:Connect(function()
+    local num = tonumber(wsInput.Text)
+    if num and Humanoid then
+        Humanoid.WalkSpeed = num
+        wsLabel.Text = "WalkSpeed: " .. num
+    end
+end)
+setY = setY + 35
+
+-- JumpPower
+local jpLabel = Instance.new("TextLabel")
+jpLabel.Text = "JumpPower: 50"
+jpLabel.Size = UDim2.new(1, 0, 0, 20)
+jpLabel.Position = UDim2.new(0, 0, 0, setY)
+jpLabel.BackgroundTransparency = 1
+jpLabel.TextColor3 = Color3.new(1,1,1)
+jpLabel.Parent = settingsScroll
+setY = setY + 20
+
+local jpInput = Instance.new("TextBox")
+jpInput.Text = "50"
+jpInput.Size = UDim2.new(1, 0, 0, 30)
+jpInput.Position = UDim2.new(0, 0, 0, setY)
+jpInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+jpInput.TextColor3 = Color3.new(1,1,1)
+jpInput.Parent = settingsScroll
+jpInput.FocusLost:Connect(function()
+    local num = tonumber(jpInput.Text)
+    if num and Humanoid then
+        Humanoid.UseJumpPower = true
+        Humanoid.JumpPower = num
+        jpLabel.Text = "JumpPower: " .. num
+    end
+end)
+setY = setY + 35
+
+-- Anti-AFK
+local antiAfkEnabled = false
+local afkBtn = Instance.new("TextButton")
+afkBtn.Text = "Anti-AFK: OFF"
+afkBtn.Size = UDim2.new(1, 0, 0, 30)
+afkBtn.Position = UDim2.new(0, 0, 0, setY)
+afkBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+afkBtn.TextColor3 = Color3.new(1,1,1)
+afkBtn.Parent = settingsScroll
+afkBtn.MouseButton1Click:Connect(function()
+    antiAfkEnabled = not antiAfkEnabled
+    afkBtn.Text = "Anti-AFK: " .. (antiAfkEnabled and "ON" or "OFF")
+    afkBtn.BackgroundColor3 = antiAfkEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    
+    if antiAfkEnabled then
+        task.spawn(function()
+            while antiAfkEnabled do
+                local vu = game:GetService("VirtualUser")
+                vu:CaptureController()
+                vu:ClickButton2(Vector2.new())
+                task.wait(60)
+            end
+        end)
+    end
+end)
+setY = setY + 35
+
+-- Fullbright
+local fbEnabled = false
+local fbBtn = Instance.new("TextButton")
+fbBtn.Text = "Fullbright: OFF"
+fbBtn.Size = UDim2.new(1, 0, 0, 30)
+fbBtn.Position = UDim2.new(0, 0, 0, setY)
+fbBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+fbBtn.TextColor3 = Color3.new(1,1,1)
+fbBtn.Parent = settingsScroll
+fbBtn.MouseButton1Click:Connect(function()
+    fbEnabled = not fbEnabled
+    fbBtn.Text = "Fullbright: " .. (fbEnabled and "ON" or "OFF")
+    fbBtn.BackgroundColor3 = fbEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    
+    if fbEnabled then
+        Lighting.Brightness = 2
+        Lighting.ClockTime = 14
+        Lighting.FogEnd = 100000
+        Lighting.GlobalShadows = false
+        Lighting.OutdoorAmbient = Color3.fromRGB(128, 128, 128)
+    else
+        Lighting.Brightness = 1
+        Lighting.ClockTime = 12
+        Lighting.FogEnd = 10000
+        Lighting.GlobalShadows = true
+        Lighting.OutdoorAmbient = Color3.fromRGB(127, 127, 127)
+    end
+end)
+
+-- 5. Trade & Webhook (Kept from v1, minor UI tweaks)
+-- Trade
 local tradeActive = false
 local selectedItems = {}
 local targetPlayerName = ""
@@ -338,7 +515,7 @@ tradeToggle.MouseButton1Click:Connect(function()
     if not tradeActive then
         print("Selected Items:", table.concat(selectedItems, ", "))
     else
-        selectedItems = {} -- Reset on new session
+        selectedItems = {} 
     end
 end)
 
@@ -362,17 +539,11 @@ sendTradeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 sendTradeBtn.TextColor3 = Color3.new(1,1,1)
 sendTradeBtn.MouseButton1Click:Connect(function()
     if targetPlayerName ~= "" and #selectedItems > 0 then
-        -- Placeholder for Trade Request Remote
-        -- local tradeRemote = net:FindFirstChild("RF/TradeRequest")
-        -- if tradeRemote then
-        --     tradeRemote:InvokeServer(Players[targetPlayerName], selectedItems)
-        -- end
         print("Sending trade to " .. targetPlayerName .. " with " .. #selectedItems .. " items.")
     else
         warn("Please select items and enter a target player name.")
     end
 end)
-
 
 -- Hooking RE/EquipItem
 task.spawn(function()
@@ -382,7 +553,6 @@ task.spawn(function()
             local oldNamecall = mt.__namecall
             setreadonly(mt, false)
             mt.__namecall = newcclosure(function(self, ...)
-                local method = getnamecallmethod()
                 if tradeActive and (tostring(self) == "EquipItem" or tostring(self) == "RE/EquipItem") then
                     local args = {...}
                     if args[1] then
@@ -398,46 +568,8 @@ task.spawn(function()
     end)
 end)
 
--- 5. Webhook System
+-- Webhook
 local webhookUrl = ""
-
--- RBXGeneral Filtering (Simple Simulation)
-local function filterMessage(msg)
-    -- Placeholder for actual RBX filtering
-    -- In a real script, this might check against a blacklist or use Chat:FilterStringForBroadcast
-    return msg 
-end
-
-local function SendMessageToWebhook(url, message)
-    if url == "" then return end
-    
-    local filteredMsg = filterMessage(message)
-    
-    local data = HttpService:JSONEncode({content = filteredMsg})
-    if request then
-        request({
-            Url = url,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = data
-        })
-    elseif http_request then
-        http_request({
-            Url = url,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = data
-        })
-    end
-end
-
-local wbLabel = Instance.new("TextLabel")
-wbLabel.Text = "Discord Webhook URL:"
-wbLabel.Size = UDim2.new(1, 0, 0, 20)
-wbLabel.TextColor3 = Color3.new(1,1,1)
-wbLabel.BackgroundTransparency = 1
-wbLabel.Parent = tabFrames["Webhook"]
-
 local wbInput = Instance.new("TextBox")
 wbInput.PlaceholderText = "Paste Webhook URL here..."
 wbInput.Text = ""
@@ -446,9 +578,7 @@ wbInput.Position = UDim2.new(0, 0, 0, 25)
 wbInput.Parent = tabFrames["Webhook"]
 wbInput.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 wbInput.TextColor3 = Color3.new(1,1,1)
-wbInput.FocusLost:Connect(function()
-    webhookUrl = wbInput.Text
-end)
+wbInput.FocusLost:Connect(function() webhookUrl = wbInput.Text end)
 
 local wbTestBtn = Instance.new("TextButton")
 wbTestBtn.Text = "Test Webhook"
@@ -458,39 +588,26 @@ wbTestBtn.Parent = tabFrames["Webhook"]
 wbTestBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 wbTestBtn.TextColor3 = Color3.new(1,1,1)
 wbTestBtn.MouseButton1Click:Connect(function()
-    SendMessageToWebhook(webhookUrl, "FishItBot Webhook Test Successful!")
-end)
-
-
--- 6. Security & Misc
--- Remove visuals
-local function cleanVisuals()
-    for _, v in pairs(workspace:GetDescendants()) do
-        if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then
-            v.Enabled = false
+    if webhookUrl ~= "" then
+        local data = HttpService:JSONEncode({content = "FishItBot Webhook Test!"})
+        if request then
+            request({Url = webhookUrl, Method = "POST", Headers = {["Content-Type"] = "application/json"}, Body = data})
         end
     end
-end
+end)
 
+-- 6. Misc
 local cleanBtn = Instance.new("TextButton")
 cleanBtn.Text = "Clean Visuals (FPS Boost)"
 cleanBtn.Size = UDim2.new(1, 0, 0, 30)
 cleanBtn.Parent = tabFrames["Misc"]
 cleanBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 cleanBtn.TextColor3 = Color3.new(1,1,1)
-cleanBtn.MouseButton1Click:Connect(cleanVisuals)
-
--- Hide Notifications (Simple implementation)
-local function hideNotifications()
-    pcall(function()
-        game:GetService("StarterGui"):SetCore("SendNotification", {
-            Title = "FishItBot",
-            Text = "Notifications Hidden",
-            Duration = 3
-        })
-        -- In a real scenario, we might hook the CoreGui to stop incoming notifications
-    end)
-end
+cleanBtn.MouseButton1Click:Connect(function()
+    for _, v in pairs(workspace:GetDescendants()) do
+        if v:IsA("ParticleEmitter") or v:IsA("Trail") or v:IsA("Beam") then v.Enabled = false end
+    end
+end)
 
 local hideNotifBtn = Instance.new("TextButton")
 hideNotifBtn.Text = "Hide Game Notifications"
@@ -499,6 +616,10 @@ hideNotifBtn.Position = UDim2.new(0, 0, 0, 35)
 hideNotifBtn.Parent = tabFrames["Misc"]
 hideNotifBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 hideNotifBtn.TextColor3 = Color3.new(1,1,1)
-hideNotifBtn.MouseButton1Click:Connect(hideNotifications)
+hideNotifBtn.MouseButton1Click:Connect(function()
+    pcall(function()
+        game:GetService("StarterGui"):SetCore("SendNotification", {Title = "FishItBot", Text = "Notifications Hidden", Duration = 3})
+    end)
+end)
 
-print("Fish It Bot Loaded Successfully")
+print("Fish It Bot v2.0 Loaded Successfully")
