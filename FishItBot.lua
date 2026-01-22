@@ -56,7 +56,7 @@ Header.Parent = MainFrame
 
 local TitleLabel = Instance.new("TextLabel")
 TitleLabel.Name = "Title"
-TitleLabel.Text = "Dul Gege v2.0"
+TitleLabel.Text = "EL-FARM v2.0"
 TitleLabel.Size = UDim2.new(1, -100, 1, 0)
 TitleLabel.Position = UDim2.new(0, 10, 0, 0)
 TitleLabel.BackgroundTransparency = 1
@@ -110,7 +110,7 @@ TabPagesFrame.BackgroundTransparency = 1
 TabPagesFrame.Parent = ContentFrame
 
 local tabs = {
-    "AutoFish", "Teleport", "Settings", "Misc", "Trade", "Webhook"
+    "AutoFish", "Teleport", "Settings", "Misc", "Trade", "Webhook", "Debug"
 }
 
 local currentTab = nil
@@ -163,27 +163,26 @@ local fishingEvents = {}
 -- Safely try to find the net module and remotes
 task.spawn(function()
     pcall(function()
-        -- Try multiple paths for net
-        local packages = ReplicatedStorage:FindFirstChild("Packages")
-        if packages then
-             local index = packages:FindFirstChild("_Index")
-             if index then
-                 local netPackage = index:FindFirstChild("sleitnick_net@0.2.0")
-                 if netPackage then
-                     net = netPackage:WaitForChild("net", 2)
-                 end
-             end
-        end
+        -- Direct path as specified by user
+        local packages = ReplicatedStorage:WaitForChild("Packages")
+        local index = packages:WaitForChild("_Index")
+        local netPackage = index:WaitForChild("sleitnick_net@0.2.0")
+        net = netPackage:WaitForChild("net")
     end)
 
     if net then
         fishingEvents = {
-            EquipTool = net:FindFirstChild("RE/EquipToolFromHotbar"),
-            ChargeRod = net:FindFirstChild("RF/ChargeFishingRod"),
-            Minigame = net:FindFirstChild("RF/RequestFishingMinigameStarted"),
-            Complete = net:FindFirstChild("RE/FishingCompleted"),
-            Sell = net:FindFirstChild("RF/SellAllItems"), -- Updated from debug dump
-            -- New Features
+            -- Mandatory Remotes
+            EquipTool = net:WaitForChild("RE/EquipToolFromHotbar"),
+            ChargeRod = net:WaitForChild("RF/ChargeFishingRod"),
+            Minigame = net:WaitForChild("RF/RequestFishingMinigameStarted"),
+            Complete = net:WaitForChild("RE/FishingCompleted"),
+            BaitSpawned = net:WaitForChild("RE/BaitSpawned"),
+            FishCaught = net:WaitForChild("RE/FishCaught"),
+            UpdateState = net:WaitForChild("RF/UpdateAutoFishingState"),
+            
+            -- Other Useful Remotes
+            Sell = net:FindFirstChild("RF/SellAllItems"), 
             ClaimDaily = net:FindFirstChild("RF/ClaimDailyLogin"),
             SpinWheel = net:FindFirstChild("RE/RequestSpin"),
             RedeemCode = net:FindFirstChild("RF/RedeemCode"),
@@ -191,7 +190,7 @@ task.spawn(function()
             PurchaseBait = net:FindFirstChild("RF/PurchaseBait")
         }
     else
-        warn("FishItBot: Net module not found! AutoFish might be limited.")
+        warn("FishItBot: Net module not found! Check path.")
     end
 end)
 
@@ -705,7 +704,88 @@ task.spawn(function()
     end)
 end)
 
--- Webhook
+-- 7. Debug (Time Spy)
+local debugScroll = tabFrames["Debug"]
+local dY = 0
+
+local debugEnabled = false
+local debugLogs = {}
+local maxLogs = 50
+
+local debugToggle = Instance.new("TextButton")
+debugToggle.Text = "Toggle Remote Spy: OFF"
+debugToggle.Size = UDim2.new(1, 0, 0, 30)
+debugToggle.Position = UDim2.new(0, 0, 0, dY)
+debugToggle.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+debugToggle.TextColor3 = Color3.new(1,1,1)
+debugToggle.Parent = debugScroll
+dY = dY + 35
+
+local logFrame = Instance.new("ScrollingFrame")
+logFrame.Name = "LogFrame"
+logFrame.Size = UDim2.new(1, 0, 1, -40)
+logFrame.Position = UDim2.new(0, 0, 0, dY)
+logFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+logFrame.BorderSizePixel = 0
+logFrame.ScrollBarThickness = 4
+logFrame.Parent = debugScroll
+
+local logLayout = Instance.new("UIListLayout")
+logLayout.Parent = logFrame
+logLayout.SortOrder = Enum.SortOrder.LayoutOrder
+
+function addLog(msg)
+    if not debugEnabled then return end
+    
+    local label = Instance.new("TextLabel")
+    label.Text = "[" .. os.date("%H:%M:%S") .. "] " .. msg
+    label.Size = UDim2.new(1, 0, 0, 20)
+    label.BackgroundTransparency = 1
+    label.TextColor3 = Color3.new(0.8, 0.8, 0.8)
+    label.TextXAlignment = Enum.TextXAlignment.Left
+    label.Font = Enum.Font.Code
+    label.TextSize = 12
+    label.Parent = logFrame
+    
+    table.insert(debugLogs, label)
+    if #debugLogs > maxLogs then
+        debugLogs[1]:Destroy()
+        table.remove(debugLogs, 1)
+    end
+    
+    logFrame.CanvasPosition = Vector2.new(0, 99999)
+end
+
+debugToggle.MouseButton1Click:Connect(function()
+    debugEnabled = not debugEnabled
+    debugToggle.Text = "Toggle Remote Spy: " .. (debugEnabled and "ON" or "OFF")
+    debugToggle.BackgroundColor3 = debugEnabled and Color3.fromRGB(50, 200, 50) or Color3.fromRGB(200, 50, 50)
+    
+    if debugEnabled then
+        addLog("Spy Started...")
+        -- Hook/Monitor remotes if possible
+        -- Note: Real RemoteSpy requires exploit environment hookmetamethod
+        -- Here we will log our own interactions and listen to Client Events
+        
+        for name, remote in pairs(fishingEvents) do
+            if remote:IsA("RemoteEvent") then
+                remote.OnClientEvent:Connect(function(...)
+                    addLog("RE Received: " .. name .. " | Args: " .. tostring(...))
+                end)
+            end
+        end
+    end
+end)
+
+-- Hook our own calls to log them
+local originalInvoke = nil
+local originalFire = nil
+
+-- Simple wrapper to log outgoing calls (limited without exploit hooks)
+-- This section is illustrative as we can't easily hook standard methods in vanilla Lua without exploit env
+-- But we can log when WE call them in startFishing
+
+-- Webhook (End of file)
 local webhookUrl = ""
 local wbInput = Instance.new("TextBox")
 wbInput.PlaceholderText = "Paste Webhook URL here..."
